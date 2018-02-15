@@ -11,7 +11,9 @@ import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.TextView;
+import android.util.Log;
 
+import com.example.yumanoha.officeARandroid.digitalAtlas.AtlasAccessor;
 import com.google.android.gms.common.api.CommonStatusCodes;
 import com.google.android.gms.vision.barcode.Barcode;
 import com.example.yumanoha.officeARandroid.barcode.BarcodeCaptureActivity;
@@ -19,6 +21,7 @@ import com.example.yumanoha.officeARandroid.barcode.BarcodeCaptureActivity;
 import com.microsoft.aad.adal.AuthenticationContext;
 import com.microsoft.aad.adal.AuthenticationResult;
 import com.microsoft.aad.adal.AuthenticationCallback;
+import com.microsoft.aad.adal.AuthenticationException;
 import com.microsoft.aad.adal.PromptBehavior;
 
 import static com.microsoft.aad.adal.AuthenticationConstants.OAuth2.AUTHORITY;
@@ -26,14 +29,17 @@ import static com.microsoft.aad.adal.AuthenticationConstants.OAuth2.AUTHORITY;
 public class MainActivity extends AppCompatActivity {
 
     private static final int BARCODE_READER_REQUEST_CODE = 1;
+    private static final String LOG_TAG = "OFFICEAR";
     private TextView mResultTextView;
 
     private AuthenticationContext authenticationContext;
+    private String accessToken = "";
+    private AtlasAccessor atlasAccessor;
     private static final String CLIENT_ID = "da1a049e-1bf8-407c-8e76-bac9ff2f34dd";
     private static final String TENANT_ID = "72f988bf-86f1-41af-91ab-2d7cd011db47";
     private static final String REDIRECT_URI_BASE = "ms-appx-web://Microsoft.AAD.BrokerPlugin";
     private static final String REDIRECT_URI = REDIRECT_URI_BASE + "/" + CLIENT_ID;
-    private static final String GRAPH_RESOURCE = "https://graph.microsoft.com";
+    private static final String RESOURCE = "https://microsoft.onmicrosoft.com/d8cab6db-ce19-4a16-b992-396ca763d6cb";
     private static final String AUTHORITY = "https://login.microsoftonline.com/" + TENANT_ID;
     //private static final String LOG_TAG = "AUTH";
 
@@ -41,26 +47,31 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
         // Create the authentication context.
         authenticationContext = new AuthenticationContext(MainActivity.this,
                 AUTHORITY, true);
 
+        //authenticationContext.acquireToken(MainActivity.this, RESOURCE, CLIENT_ID, REDIRECT_URI, PromptBehavior.Auto, "", callback);
+
+
         // Acquire tokens using necessary UI.
-        authenticationContext.acquireToken(MainActivity.this, GRAPH_RESOURCE, CLIENT_ID, REDIRECT_URI,
-        PromptBehavior.Always, new AuthenticationCallback<AuthenticationResult>() {
+        authenticationContext.acquireToken(MainActivity.this, RESOURCE, CLIENT_ID, REDIRECT_URI,
+        PromptBehavior.Auto, new AuthenticationCallback<AuthenticationResult>() {
             @Override
             public void onSuccess(AuthenticationResult result) {
                 String idToken = result.getIdToken();
-                String accessToken = result.getAccessToken();
+                accessToken = result.getAccessToken();
 
                 // Print tokens.
-                /*Log.d(LOG_TAG, "ID Token: " + idToken);
-                Log.d(LOG_TAG, "Access Token: " + accessToken);*/
+                Log.d(LOG_TAG, "ID Token: " + idToken);
+                Log.d(LOG_TAG, "Access Token: " + accessToken);
+                atlasAccessor = new AtlasAccessor(idToken, accessToken);
             }
 
             @Override
             public void onError(Exception exc) {
-                // TODO: Handle error
+                Log.d(LOG_TAG, exc.getMessage());
             }
         });
 
@@ -87,14 +98,20 @@ public class MainActivity extends AppCompatActivity {
                     Barcode barcode = (Barcode)data.getParcelableExtra("Barcode");
                     Point[] p = barcode.cornerPoints;
                     mResultTextView.setText(barcode.displayValue);
+                    String s = accessToken;
                 } else
                     mResultTextView.setText(R.string.decode_error_text);
             }
             /*else*/
                 /*Log.e(LOG_TAG, String.format(getString(R.string.barcode_error_format),
                         CommonStatusCodes.getStatusCodeString(resultCode)))*/
-        } else
+        } else{
             super.onActivityResult(requestCode, resultCode, data);
+
+            if(authenticationContext != null){
+                authenticationContext.onActivityResult(requestCode, resultCode, data);
+            }
+        }
     }
 
     @Override
@@ -118,5 +135,30 @@ public class MainActivity extends AppCompatActivity {
 
         return super.onOptionsItemSelected(item);
     }
+
+    /*private AuthenticationCallback<AuthenticationResult> callback = new AuthenticationCallback<AuthenticationResult>() {
+
+        @Override
+        public void onError(Exception exc) {
+            if (exc instanceof AuthenticationException) {
+                mResultTextView.setText("Cancelled");
+            } else {
+                mResultTextView.setText("Authentication error:" + exc.getMessage());
+            }
+        }
+
+        @Override
+        public void onSuccess(AuthenticationResult result) {
+            //mResult = result;
+
+            if (result == null || result.getAccessToken() == null
+                    || result.getAccessToken().isEmpty()) {
+                mResultTextView.setText("Token is empty");
+            } else {
+                // request is successful
+                mResultTextView.setText("Passed");
+            }
+        }
+    };*/
 }
 
