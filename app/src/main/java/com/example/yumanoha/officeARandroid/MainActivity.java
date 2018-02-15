@@ -13,6 +13,7 @@ import android.view.MenuItem;
 import android.widget.TextView;
 import android.util.Log;
 
+import com.android.volley.AuthFailureError;
 import com.example.yumanoha.officeARandroid.digitalAtlas.AtlasAccessor;
 import com.google.android.gms.common.api.CommonStatusCodes;
 import com.google.android.gms.vision.barcode.Barcode;
@@ -25,6 +26,19 @@ import com.microsoft.aad.adal.AuthenticationException;
 import com.microsoft.aad.adal.PromptBehavior;
 
 import static com.microsoft.aad.adal.AuthenticationConstants.OAuth2.AUTHORITY;
+
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
+
+import org.json.JSONObject;
+
+import java.util.HashMap;
+import java.util.Map;
+
 
 public class MainActivity extends AppCompatActivity {
 
@@ -42,6 +56,9 @@ public class MainActivity extends AppCompatActivity {
     private static final String RESOURCE = "https://microsoft.onmicrosoft.com/d8cab6db-ce19-4a16-b992-396ca763d6cb";
     private static final String AUTHORITY = "https://login.microsoftonline.com/" + TENANT_ID;
     //private static final String LOG_TAG = "AUTH";
+
+    private static final String BASE_URL = "https://officear-ppe.cloudapp.net/api/v1/adal";
+    private final RequestQueue queue = Volley.newRequestQueue(this);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -98,7 +115,7 @@ public class MainActivity extends AppCompatActivity {
                     Barcode barcode = (Barcode)data.getParcelableExtra("Barcode");
                     Point[] p = barcode.cornerPoints;
                     mResultTextView.setText(barcode.displayValue);
-                    String s = accessToken;
+                    GetAtlasEntry(barcode.displayValue);
                 } else
                     mResultTextView.setText(R.string.decode_error_text);
             }
@@ -160,5 +177,39 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     };*/
+
+    public void GetAtlasEntry(String qrcode) {
+
+        String url = BASE_URL + qrcode;
+        // prepare the Request
+        JsonObjectRequest getRequest = new JsonObjectRequest(Request.Method.GET, url, null,
+                new Response.Listener<JSONObject>()
+                {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        // display response
+                        Log.d("Response", response.toString());
+                        mResultTextView.setText(response.toString());
+                    }
+                },
+                new Response.ErrorListener()
+                {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        Log.d("Error.Response", error.getMessage());
+                    }
+                }
+        ){
+            @Override
+            public Map<String, String> getHeaders() throws AuthFailureError {
+                Map<String,String> headers = new HashMap<String, String>();
+                headers.put("Authorization","Bearer " + accessToken);
+                return headers;
+            }
+        };
+
+        // add it to the RequestQueue
+        queue.add(getRequest);
+    }
 }
 
