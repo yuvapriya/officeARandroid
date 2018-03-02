@@ -2,7 +2,10 @@ package com.example.yumanoha.officeARandroid;
 
 import android.content.Intent;
 import android.graphics.Point;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
@@ -12,6 +15,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.TextView;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.android.volley.AuthFailureError;
 import com.example.yumanoha.officeARandroid.digitalAtlas.AtlasAccessor;
@@ -34,6 +38,7 @@ import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.HashMap;
@@ -46,9 +51,12 @@ public class MainActivity extends AppCompatActivity {
     private static final String LOG_TAG = "OFFICEAR";
     private TextView mResultTextView;
 
+    // For enabling overlay permission for React-Native component
+    private static final int OVERLAY_PERMISSION_REQ_CODE = 1212;
+
     private AuthenticationContext authenticationContext;
     private String accessToken = "";
-    private AtlasAccessor atlasAccessor;
+//    private AtlasAccessor atlasAccessor;
     private static final String CLIENT_ID = "da1a049e-1bf8-407c-8e76-bac9ff2f34dd";
     private static final String TENANT_ID = "72f988bf-86f1-41af-91ab-2d7cd011db47";
     private static final String REDIRECT_URI_BASE = "ms-appx-web://Microsoft.AAD.BrokerPlugin";
@@ -57,13 +65,24 @@ public class MainActivity extends AppCompatActivity {
     private static final String AUTHORITY = "https://login.microsoftonline.com/" + TENANT_ID;
     //private static final String LOG_TAG = "AUTH";
 
-    private static final String BASE_URL = "https://officear-ppe.cloudapp.net/api/v1/adal";
-    private final RequestQueue queue = Volley.newRequestQueue(this);
+    private static final String BASE_URL = "https://officear-ppe.cloudapp.net/api/v1/digitalatlas/";
+    private RequestQueue queue;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // For enabling overlay permission for React-Native component
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getPackageName()));
+                startActivityForResult(intent, OVERLAY_PERMISSION_REQ_CODE);
+            }
+        }
+
         setContentView(R.layout.activity_main);
+        queue = Volley.newRequestQueue(this);
 
         // Create the authentication context.
         authenticationContext = new AuthenticationContext(MainActivity.this,
@@ -83,7 +102,7 @@ public class MainActivity extends AppCompatActivity {
                 // Print tokens.
                 Log.d(LOG_TAG, "ID Token: " + idToken);
                 Log.d(LOG_TAG, "Access Token: " + accessToken);
-                atlasAccessor = new AtlasAccessor(idToken, accessToken);
+//                atlasAccessor = new AtlasAccessor(idToken, accessToken);
             }
 
             @Override
@@ -109,6 +128,15 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        // For enabling overlay permission for React-Native component
+        if (requestCode == OVERLAY_PERMISSION_REQ_CODE) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (!Settings.canDrawOverlays(this)) {
+                    Toast.makeText(this, "You cannot open the React Native app as you have denied the permission", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }
+
         if (requestCode == BARCODE_READER_REQUEST_CODE) {
             if (resultCode == CommonStatusCodes.SUCCESS) {
                 if (data != null) {
@@ -116,6 +144,8 @@ public class MainActivity extends AppCompatActivity {
                     Point[] p = barcode.cornerPoints;
                     mResultTextView.setText(barcode.displayValue);
                     GetAtlasEntry(barcode.displayValue);
+                    Intent intent = new Intent(this, ReactActivity.class);
+                    startActivity(intent);
                 } else
                     mResultTextView.setText(R.string.decode_error_text);
             }
@@ -187,9 +217,13 @@ public class MainActivity extends AppCompatActivity {
                 {
                     @Override
                     public void onResponse(JSONObject response) {
-                        // display response
                         Log.d("Response", response.toString());
-                        mResultTextView.setText(response.toString());
+                        try {
+                            String bundleUrl = response.getJSONObject("actions").getJSONObject("meeting").getString("jsBundleUrl");
+                            mResultTextView.setText(bundleUrl);
+                        } catch (JSONException e) {
+                            Log.e("Response", e.toString());
+                        }
                     }
                 },
                 new Response.ErrorListener()
